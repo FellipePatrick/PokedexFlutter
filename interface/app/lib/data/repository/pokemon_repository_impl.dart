@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:app/data/database/dao/PokemonDao.dart';
 import 'package:app/data/database/database_mapper.dart';
 import 'package:app/data/database/entity/pokemon_database_entity.dart';
@@ -54,20 +56,25 @@ class PokemonRepositoryImpl implements PokemonRepository {
     return pokemons;
   }
 
-  Future<Pokemon> getPokemonById(int id) async {
+  Future<Pokemon> getPokemon() async {
     try {
-      final networkEntity = await apiClient.getPokemonById(id);
-      // Verifica se a entidade retornada não é nula
-      if (networkEntity == null) {
-        throw Exception('Pokémon não encontrado');
+      final Random _random = Random();
+
+      final int numeroDePokemons = await pokemonDao.count();
+
+      final dbEntity =
+          await pokemonDao.selectById(_random.nextInt(numeroDePokemons + 1));
+
+      if (dbEntity == null) {
+        throw Exception('Pokémon não encontrado no banco de dados');
       }
 
-      final pokemon = networkMapper.toPokemon(networkEntity);
-      await pokemonDao.insert(databaseMapper.toPokemonDatabaseEntity(pokemon));
-      return pokemon;
+      return databaseMapper.toPokemon(dbEntity);
     } catch (e) {
-      print('Erro ao carregar Pokémon com ID $id: $e');
+      print('Erro ao carregar Pokémon: $e');
       throw Exception('Falha ao carregar Pokémon');
     }
   }
 }
+
+class _random {}

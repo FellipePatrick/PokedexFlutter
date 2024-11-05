@@ -28,10 +28,8 @@ class _PokemonRandomPageState extends State<PokemonRandomPage> {
   }
 
   Future<void> fetchRandomPokemon() async {
-    int randomNumber = _random.nextInt(800) + 1;
-
     try {
-      final result = await pokemonRepo.getPokemonById(randomNumber);
+      final result = await pokemonRepo.getPokemon();
       setState(() {
         randomPokemon = result;
         isLoading = false;
@@ -47,7 +45,7 @@ class _PokemonRandomPageState extends State<PokemonRandomPage> {
   Future<void> capturePokemon() async {
     if (randomPokemon != null) {
       try {
-        await Future.delayed(Duration(milliseconds: 50));
+        await Future.delayed(Duration(milliseconds: 5));
 
         int count = await _databaseHelper.getEquipeCount();
 
