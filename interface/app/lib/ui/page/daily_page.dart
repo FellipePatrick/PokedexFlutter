@@ -34,7 +34,7 @@ class _PokemonRandomPageState extends State<PokemonRandomPage> {
     final savedDate = prefs.getString('pokemon_date');
 
     //Para burlar o sistema de captura de pokemons, basta alterar esse savedDate == today para false
-    if (savedDate == today) {
+    if (false) {
       // Já existe um Pokémon salvo para o dia atual
       final savedId = prefs.getInt('pokemon_id');
       final savedName = prefs.getString('pokemon_name');
