@@ -1,7 +1,7 @@
 class Team {
-  final int id; // ID autoincremental da equipe
-  final int identificadorApi; // ID da equipe na API
-  final String name; // Nome da equipe
+  final int id;
+  final int identificadorApi;
+  final String name;
 
   Team({
     required this.id,

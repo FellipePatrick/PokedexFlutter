@@ -1,10 +1,10 @@
-import 'dart:math';
-import 'package:app/data/database/databaseHelper.dart';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../data/network/entity/http_paged_result.dart';
-import '../../domain/pokemon.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../data/database/databaseHelper.dart';
 import '../../data/repository/pokemon_repository_impl.dart';
+import '../../domain/pokemon.dart';
 
 class PokemonRandomPage extends StatefulWidget {
   const PokemonRandomPage({super.key});
@@ -16,17 +16,66 @@ class PokemonRandomPage extends StatefulWidget {
 class _PokemonRandomPageState extends State<PokemonRandomPage> {
   late final PokemonRepositoryImpl pokemonRepo;
   Pokemon? randomPokemon;
-  final Random _random = Random();
   bool isLoading = true;
   final DatabaseHelper _databaseHelper = DatabaseHelper();
+  bool alreadyCapturedToday = false;
 
   @override
   void initState() {
     super.initState();
     pokemonRepo = Provider.of<PokemonRepositoryImpl>(context, listen: false);
-    fetchRandomPokemon();
+    _loadRandomPokemon();
   }
 
+  Future<void> _loadRandomPokemon() async {
+    final prefs = await SharedPreferences.getInstance();
+    final today =
+        DateTime.now().toIso8601String().substring(0, 10); // Formato YYYY-MM-DD
+    final savedDate = prefs.getString('pokemon_date');
+
+    //Para burlar o sistema de captura de pokemons, basta alterar esse savedDate == today para false
+    if (savedDate == today) {
+      // Já existe um Pokémon salvo para o dia atual
+      final savedId = prefs.getInt('pokemon_id');
+      final savedName = prefs.getString('pokemon_name');
+      final savedType = prefs.getStringList('pokemon_type');
+      final savedBaseJson = prefs.getString('pokemon_base');
+      alreadyCapturedToday = prefs.getBool('pokemon_captured_today') ?? false;
+
+      if (savedId != null &&
+          savedName != null &&
+          savedType != null &&
+          savedBaseJson != null) {
+        // Deserializa `Base` do JSON armazenado
+        final savedBaseMap = jsonDecode(savedBaseJson) as Map<String, dynamic>;
+        final savedBase = Base.fromJson(savedBaseMap);
+
+        setState(() {
+          randomPokemon = Pokemon(
+            id: savedId,
+            name: savedName,
+            type: savedType,
+            base: savedBase,
+          );
+          isLoading = false;
+        });
+        return;
+      }
+    }
+
+    // Caso não tenha um Pokémon salvo ou o dia tenha mudado, sorteia um novo Pokémon
+    await fetchRandomPokemon();
+    await prefs.setString('pokemon_date', today);
+    await prefs.setInt('pokemon_id', randomPokemon!.id);
+    await prefs.setString('pokemon_name', randomPokemon!.name);
+    await prefs.setStringList('pokemon_type', randomPokemon!.type);
+    await prefs.setString(
+        'pokemon_base', jsonEncode(randomPokemon!.base.toJson()));
+    await prefs.setBool('pokemon_captured_today', false); // Reset captura
+    alreadyCapturedToday = false;
+  }
+
+  // Função para buscar um Pokémon aleatório
   Future<void> fetchRandomPokemon() async {
     try {
       final result = await pokemonRepo.getPokemon();
@@ -43,9 +92,9 @@ class _PokemonRandomPageState extends State<PokemonRandomPage> {
   }
 
   Future<void> capturePokemon() async {
-    if (randomPokemon != null) {
+    if (randomPokemon != null && !alreadyCapturedToday) {
       try {
-        await Future.delayed(Duration(milliseconds: 5));
+        await Future.delayed(const Duration(milliseconds: 5));
 
         int count = await _databaseHelper.getEquipeCount();
 
@@ -61,16 +110,21 @@ class _PokemonRandomPageState extends State<PokemonRandomPage> {
           // Adiciona o Pokémon à tabela Equipe
           await _databaseHelper.insertPokemonToEquipe(
             randomPokemon!.id.toString(),
-            randomPokemon!.name, // Incluindo o nome do Pokémon
+            randomPokemon!.name,
           );
+
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setBool('pokemon_captured_today', true);
+          setState(() {
+            alreadyCapturedToday = true;
+          });
+
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('Você capturou ${randomPokemon!.name}!'),
               backgroundColor: Colors.green,
             ),
           );
-          // Busca um novo Pokémon aleatório após a captura
-          fetchRandomPokemon();
         }
       } catch (e) {
         print('Erro ao capturar Pokémon: $e');
@@ -81,6 +135,13 @@ class _PokemonRandomPageState extends State<PokemonRandomPage> {
           ),
         );
       }
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Você já capturou o Pokémon do dia.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
     }
   }
 
@@ -141,8 +202,8 @@ class _PokemonRandomPageState extends State<PokemonRandomPage> {
 // Extensão para capitalizar a primeira letra
 extension StringExtension on String {
   String get capitalizeFirstOfEach =>
-      this.split(' ').map((str) => str.capitalize()).join(' ');
+      split(' ').map((str) => str.capitalize()).join(' ');
 
   String capitalize() =>
-      this.isEmpty ? '' : '${this[0].toUpperCase()}${this.substring(1)}';
+      isEmpty ? '' : '${this[0].toUpperCase()}${substring(1)}';
 }
